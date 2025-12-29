@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -9,43 +9,63 @@ import (
 )
 
 type Config struct {
-	Port         int
-	DBDialect    string
-	DBHost       string
-	DBPort       int
-	DBUser       string
-	DBPassword   string
-	DBName       string
-	DBSSLMode    string
-	LogFilePath  string
+	Port        int
+	LogFilePath string
+	Database    DatabaseConfig
+}
+
+type DatabaseConfig struct {
+	Host     string
+	Port     int
+	User     string
+	Password string
+	DBName   string
+	SSLMode  string
 }
 
 func LoadConfig() *Config {
-	// Load .env file
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("Warning: No .env file found, using environment variables")
-	}
-
-	port, _ := strconv.Atoi(getEnv("PORT", "8080"))
-	dbPort, _ := strconv.Atoi(getEnv("DB_PORT", "5433"))
+	// Load .env file if it exists
+	_ = godotenv.Load()
 
 	return &Config{
-		Port:        port,
-		DBDialect:   getEnv("DB_DIALECT", "postgres"),
-		DBHost:      getEnv("DB_HOST", "localhost"),
-		DBPort:      dbPort,
-		DBUser:      getEnv("DB_USER", "go_admin"),
-		DBPassword:  getEnv("DB_PASSWORD", "GoAdmin@1234567"),
-		DBName:      getEnv("DB_NAME", "go_training"),
-		DBSSLMode:   getEnv("DB_SSLMODE", "disable"),
-		LogFilePath: getEnv("LOG_FILE_PATH", "./logs/app.log"),
+		Port:        getEnvAsInt("PORT", 8080),
+		LogFilePath: getEnv("LOG_FILE_PATH", "logs/app.log"),
+		Database: DatabaseConfig{
+			Host:     getEnv("DB_HOST", "localhost"),
+			Port:     getEnvAsInt("DB_PORT", 5432),
+			User:     getEnv("DB_USER", "postgres"),
+			Password: getEnv("DB_PASSWORD", "password"),
+			DBName:   getEnv("DB_NAME", "user_management"),
+			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+		},
 	}
 }
 
-func getEnv(key, defaultVal string) string {
-	if value, exists := os.LookupEnv(key); exists {
+// GetDatabaseURL returns the PostgreSQL connection string
+func (c *Config) GetDatabaseURL() string {
+	return fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d/%s?sslmode=%s",
+		c.Database.User,
+		c.Database.Password,
+		c.Database.Host,
+		c.Database.Port,
+		c.Database.DBName,
+		c.Database.SSLMode,
+	)
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
 		return value
 	}
-	return defaultVal
+	return defaultValue
+}
+
+func getEnvAsInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
+	}
+	return defaultValue
 }

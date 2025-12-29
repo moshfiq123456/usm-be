@@ -3,6 +3,7 @@ module github.com/moshfiq123456/ums-be
 go 1.25.5
 
 require (
+	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/joho/godotenv v1.5.1
 	go.uber.org/zap v1.27.1
 	gofr.dev v1.50.2

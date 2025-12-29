@@ -6,7 +6,38 @@ MAIN_PATH=cmd/api/main.go
 BINARY_NAME=bin/$(APP_NAME)
 GO=go
 DOCKER_COMPOSE=docker-compose
+# --- Database URL Construction from .env ---
+# We extract values using grep/cut to avoid hardcoding
+DB_USER=$(shell grep DB_USER .env | cut -d '=' -f2)
+DB_PASSWORD=$(shell grep DB_PASSWORD .env | cut -d '=' -f2)
+DB_HOST=$(shell grep DB_HOST .env | cut -d '=' -f2)
+DB_PORT=$(shell grep DB_PORT .env | cut -d '=' -f2)
+DB_NAME=$(shell grep DB_NAME .env | cut -d '=' -f2)
+DB_SSLMODE=$(shell grep DB_SSLMODE .env | cut -d '=' -f2)
 
+DB_URL=postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
+MIGRATIONS_PATH=migrations
+
+# ... (keep your help, build, and run targets) ...
+
+# --- Migrations ---
+
+migrate-up:
+	@echo "Running migrations up..."
+	migrate -path $(MIGRATIONS_PATH) -database "$(DB_URL)" up
+
+migrate-down:
+	@echo "Rolling back 1 migration..."
+	migrate -path $(MIGRATIONS_PATH) -database "$(DB_URL)" down 1
+
+migrate-force:
+	@read -p "Enter version to force: " version; \
+	migrate -path $(MIGRATIONS_PATH) -database "$(DB_URL)" force $$version
+
+migrate-create:
+	@read -p "Enter migration name: " name; \
+	migrate create -ext sql -dir $(MIGRATIONS_PATH) -seq $$name
+	
 help:
 	@echo "Available commands:"
 	@echo "  make install-deps    - Install dependencies"
