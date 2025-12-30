@@ -1,56 +1,104 @@
-.PHONY: help build run test clean fmt lint install-deps docker-up docker-down migrate
+.PHONY: help build run test clean fmt lint install-deps docker-up docker-down \
+        migrate-up migrate-down migrate-force migrate-create install-migrate debug-db
 
-# Variables
+# -------------------------------
+# App Variables
+# -------------------------------
 APP_NAME=go-training-api
 MAIN_PATH=cmd/api/main.go
 BINARY_NAME=bin/$(APP_NAME)
 GO=go
 DOCKER_COMPOSE=docker-compose
-# --- Database URL Construction from .env ---
-# We extract values using grep/cut to avoid hardcoding
-DB_USER=$(shell grep DB_USER .env | cut -d '=' -f2)
-DB_PASSWORD=$(shell grep DB_PASSWORD .env | cut -d '=' -f2)
-DB_HOST=$(shell grep DB_HOST .env | cut -d '=' -f2)
-DB_PORT=$(shell grep DB_PORT .env | cut -d '=' -f2)
-DB_NAME=$(shell grep DB_NAME .env | cut -d '=' -f2)
-DB_SSLMODE=$(shell grep DB_SSLMODE .env | cut -d '=' -f2)
 
+# -------------------------------
+# Load .env safely (no export)
+# -------------------------------
+ENV_FILE=.env
+
+define get_env
+$(shell sed -n 's/^$(1)=//p' $(ENV_FILE))
+endef
+
+DB_USER     := $(call get_env,DB_USER)
+DB_PASSWORD := $(call get_env,DB_PASSWORD)
+DB_HOST     := $(call get_env,DB_HOST)
+DB_PORT     := $(call get_env,DB_PORT)
+DB_NAME     := $(call get_env,DB_NAME)
+DB_SSLMODE  := $(call get_env,DB_SSLMODE)
+
+# -------------------------------
+# Database
+# -------------------------------
 DB_URL=postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
 MIGRATIONS_PATH=migrations
 
-# ... (keep your help, build, and run targets) ...
+# -------------------------------
+# Migration Tool
+# -------------------------------
+MIGRATE_BIN=$(shell command -v migrate 2> /dev/null)
 
-# --- Migrations ---
+install-migrate:
+ifndef MIGRATE_BIN
+	@echo "Installing golang-migrate..."
+	curl -L https://github.com/golang-migrate/migrate/releases/latest/download/migrate.linux-amd64.tar.gz | tar xvz
+	sudo mv migrate /usr/local/bin/
+else
+	@echo "golang-migrate already installed"
+endif
 
-migrate-up:
+# -------------------------------
+# Debug
+# -------------------------------
+debug-db:
+	@echo "DB_USER=$(DB_USER)"
+	@echo "DB_HOST=$(DB_HOST)"
+	@echo "DB_PORT=$(DB_PORT)"
+	@echo "DB_NAME=$(DB_NAME)"
+	@echo "DATABASE_URL=$(DB_URL)"
+
+# -------------------------------
+# Migrations
+# -------------------------------
+migrate-up: install-migrate
 	@echo "Running migrations up..."
 	migrate -path $(MIGRATIONS_PATH) -database "$(DB_URL)" up
 
-migrate-down:
-	@echo "Rolling back 1 migration..."
+migrate-down: install-migrate
+	@echo "Rolling back last migration..."
 	migrate -path $(MIGRATIONS_PATH) -database "$(DB_URL)" down 1
 
-migrate-force:
+migrate-force: install-migrate
 	@read -p "Enter version to force: " version; \
 	migrate -path $(MIGRATIONS_PATH) -database "$(DB_URL)" force $$version
 
 migrate-create:
 	@read -p "Enter migration name: " name; \
 	migrate create -ext sql -dir $(MIGRATIONS_PATH) -seq $$name
-	
-help:
-	@echo "Available commands:"
-	@echo "  make install-deps    - Install dependencies"
-	@echo "  make build          - Build the application"
-	@echo "  make run            - Run the application"
-	@echo "  make dev            - Run in development mode with hot reload"
-	@echo "  make test           - Run tests"
-	@echo "  make fmt            - Format code"
-	@echo "  make lint           - Run linter"
-	@echo "  make clean          - Clean build artifacts"
-	@echo "  make docker-up      - Start PostgreSQL container"
-	@echo "  make docker-down    - Stop PostgreSQL container"
 
+# -------------------------------
+# Help
+# -------------------------------
+help:
+	@echo ""
+	@echo "Available commands:"
+	@echo "  make build           - Build the application"
+	@echo "  make run             - Run the application"
+	@echo "  make dev             - Run with hot reload"
+	@echo "  make test            - Run tests"
+	@echo "  make fmt             - Format code"
+	@echo "  make lint            - Run linter"
+	@echo "  make clean           - Clean build artifacts"
+	@echo "  make docker-up       - Start PostgreSQL container"
+	@echo "  make docker-down     - Stop PostgreSQL container"
+	@echo "  make migrate-up      - Run DB migrations"
+	@echo "  make migrate-down    - Rollback last migration"
+	@echo "  make migrate-create  - Create new migration"
+	@echo "  make debug-db        - Print DB config"
+	@echo ""
+
+# -------------------------------
+# App Commands
+# -------------------------------
 install-deps:
 	$(GO) mod download
 	$(GO) mod tidy
@@ -63,7 +111,8 @@ run: build
 	./$(BINARY_NAME)
 
 dev:
-	@command -v air >/dev/null 2>&1 || (echo "Installing air..." && $(GO) install github.com/cosmtrek/air@latest)
+	@command -v air >/dev/null 2>&1 || \
+	(echo "Installing air..." && $(GO) install github.com/cosmtrek/air@latest)
 	air
 
 test:
@@ -73,18 +122,20 @@ fmt:
 	$(GO) fmt ./...
 
 lint:
-	@command -v golangci-lint >/dev/null 2>&1 || (echo "Installing golangci-lint..." && $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
+	@command -v golangci-lint >/dev/null 2>&1 || \
+	(echo "Installing golangci-lint..." && \
+	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
 	golangci-lint run ./...
 
 clean:
 	rm -f $(BINARY_NAME)
 	$(GO) clean
 
+# -------------------------------
+# Docker
+# -------------------------------
 docker-up:
 	$(DOCKER_COMPOSE) up -d postgres
 
 docker-down:
 	$(DOCKER_COMPOSE) down
-
-migrate:
-	@echo "Run migrations using your preferred migration tool"
