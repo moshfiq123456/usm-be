@@ -1,28 +1,34 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/moshfiq123456/ums-be/internal/app"
 	"github.com/moshfiq123456/ums-be/internal/config"
-	"github.com/moshfiq123456/ums-be/internal/database"
-	"github.com/moshfiq123456/ums-be/internal/logger"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func main() {
+	// Load configuration
 	cfg := config.LoadConfig()
-	
-	// Initialize file-based logger
-	logger.InitLogger(cfg.LogFilePath)
-	
-	// Run database migrations
-	log.Println("Running database migrations...")
-	migrationService := database.NewMigrationService(cfg.GetDatabaseURL())
-	if err := migrationService.RunMigrations(); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+
+	// Initialize database connection
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		cfg.Database.Host,
+		cfg.Database.Port,
+		cfg.Database.User,
+		cfg.Database.Password,
+		cfg.Database.DBName,
+	)
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
 	}
-	
-	// Start the server
-	server := app.NewServer(cfg)
+
+	// Create and start server
+	server := app.NewServer(cfg, db)
 	server.Start()
 }

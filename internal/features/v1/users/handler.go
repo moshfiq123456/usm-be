@@ -1,8 +1,6 @@
-// internal/users/handler.go
 package users
 
 import (
-	"github.com/moshfiq123456/ums-be/internal/pkg/validator"
 	"gofr.dev/pkg/gofr"
 )
 
@@ -14,49 +12,72 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+// POST /users
 func (h *Handler) CreateUser(ctx *gofr.Context) (interface{}, error) {
 	var req CreateUserRequest
-
 	if err := ctx.Bind(&req); err != nil {
 		return nil, err
 	}
 
-	if err := validator.Validate.Struct(req); err != nil {
+	user, err := h.service.Create(ctx, req)
+	if err != nil {
 		return nil, err
 	}
 
-	return h.service.Create(ctx, req)
+	return toResponse(user), nil
 }
 
-
+// GET /users
 func (h *Handler) ListUsers(ctx *gofr.Context) (interface{}, error) {
-	return h.service.List(ctx)
+	users, err := h.service.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return toResponseList(users), nil
 }
 
+// GET /users/{id}
 func (h *Handler) GetUser(ctx *gofr.Context) (interface{}, error) {
 	id := ctx.PathParam("id")
-	return h.service.GetByID(ctx, id)
+
+	user, err := h.service.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return toResponse(user), nil
 }
 
+// PUT /users/{id}
 func (h *Handler) UpdateUser(ctx *gofr.Context) (interface{}, error) {
+	id := ctx.PathParam("id")
+
 	var req UpdateUserRequest
 	if err := ctx.Bind(&req); err != nil {
 		return nil, err
 	}
 
-	if err := validator.Validate.Struct(req); err != nil {
+	user, err := h.service.Update(ctx, id, req)
+	if err != nil {
 		return nil, err
 	}
 
-	return h.service.Update(ctx, ctx.PathParam("id"), req)
+	return toResponse(user), nil
 }
 
-
+// DELETE /users/{id}
 func (h *Handler) DeleteUser(ctx *gofr.Context) (interface{}, error) {
 	id := ctx.PathParam("id")
-	return nil, h.service.Delete(ctx, id)
+
+	if err := h.service.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"message": "user deleted"}, nil
 }
 
+// PATCH /users/{id}/status
 func (h *Handler) SetStatus(ctx *gofr.Context) (interface{}, error) {
 	id := ctx.PathParam("id")
 
@@ -65,5 +86,9 @@ func (h *Handler) SetStatus(ctx *gofr.Context) (interface{}, error) {
 		return nil, err
 	}
 
-	return nil, h.service.UpdateStatus(ctx, id, req.Status)
+	if err := h.service.UpdateStatus(ctx, id, req.Status); err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"message": "status updated"}, nil
 }

@@ -8,18 +8,20 @@ import (
 
 	"github.com/moshfiq123456/ums-be/internal/config"
 	"gofr.dev/pkg/gofr"
+	"gorm.io/gorm"
 )
 
 type Server struct {
 	app *gofr.App
 	cfg *config.Config
+	db  *gorm.DB
 }
 
-func NewServer(cfg *config.Config) *Server {
+func NewServer(cfg *config.Config, db *gorm.DB) *Server {
 	// Set HTTP port
 	os.Setenv("HTTP_PORT", strconv.Itoa(cfg.Port))
 	os.Setenv("PORT", strconv.Itoa(cfg.Port))
-	
+
 	// Set database configuration for GoFr
 	os.Setenv("DB_HOST", cfg.Database.Host)
 	os.Setenv("DB_PORT", strconv.Itoa(cfg.Database.Port))
@@ -27,16 +29,20 @@ func NewServer(cfg *config.Config) *Server {
 	os.Setenv("DB_PASSWORD", cfg.Database.Password)
 	os.Setenv("DB_NAME", cfg.Database.DBName)
 	os.Setenv("DB_DIALECT", "postgres")
-	
+
 	app := gofr.New()
 
 	return &Server{
 		app: app,
 		cfg: cfg,
+		db:  db,
 	}
 }
 
 func (s *Server) Start() {
+	// Register all routes
+	RegisterRoutes(s.app, s.db)
+
 	// Health check endpoint
 	s.app.GET("/health", func(ctx *gofr.Context) (interface{}, error) {
 		return map[string]string{
@@ -48,7 +54,6 @@ func (s *Server) Start() {
 
 	// Database health check
 	s.app.GET("/health/db", func(ctx *gofr.Context) (interface{}, error) {
-		// GoFr automatically provides database connection via ctx.SQL
 		_, err := ctx.SQL.Exec("SELECT 1")
 		if err != nil {
 			return map[string]string{
@@ -56,7 +61,6 @@ func (s *Server) Start() {
 				"error":  err.Error(),
 			}, nil
 		}
-		
 		return map[string]string{
 			"status": "healthy",
 		}, nil
