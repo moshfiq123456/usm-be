@@ -1,3 +1,6 @@
+-- =========================
+-- Enable UUID extension for users
+-- =========================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- =========================
@@ -36,7 +39,11 @@ CREATE TABLE roles (
 -- =========================
 CREATE TABLE permissions (
     id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(100) UNIQUE NOT NULL,
-    module VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    code VARCHAR(100) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX idx_permissions_code ON permissions(code);
